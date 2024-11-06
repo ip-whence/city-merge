@@ -1,0 +1,7 @@
+[package]
+name = "citymerge"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rstar = "0.12.2"
