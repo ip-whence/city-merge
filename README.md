@@ -19,6 +19,6 @@ The files were noted from [sapics/ip-location-db](https://github.com/sapics/ip-l
 
 2. Run the merging program to generate a new version of `dbip-city-ipv4-num.csv` with the added time zone data.
 
-3. The output file will be in the same format as `dbip-city-ipv4-num.csv` but with an additional column for the time zone.
+3. The output file will be in the same format as `dbip-city-ipv4-num.csv` but with two additional columns for the time zone.
 
 ---
