@@ -1,9 +1,11 @@
 use rstar::{Point, RTree};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use chrono_tz::{Tz, UTC};
+use chrono::{Datelike, TimeZone, LocalResult::{Single}};
 
 #[derive(Clone, PartialEq, Debug)]
-struct TimeZone {
+struct PtTimeZone {
 	lat: f64,
 	lng: f64,
 	name: Option<String>,
@@ -40,12 +42,12 @@ impl<'a> Iterator for CSVLine<'a> { //doesnt work well when line ends in comma
 	}
 }
 
-impl Point for TimeZone {
+impl Point for PtTimeZone {
 	type Scalar = f64;
 	const DIMENSIONS: usize = 2;
 
 	fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
-		TimeZone {
+		PtTimeZone {
 			lat: generator(0),
 			lng: generator(1),
 			name: None,
@@ -70,7 +72,7 @@ impl Point for TimeZone {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let mut tree: RTree<TimeZone> = RTree::new();
+	let mut tree: RTree<PtTimeZone> = RTree::new();
 	let tzfile = File::open("geolite2-city-ipv4-num.csv")?;
 	let reader = BufReader::new(tzfile);
 	for line_result in reader.lines() {
@@ -80,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		let lat = iter.next().unwrap();
 		let lng = iter.next().unwrap();
 		let tz = iter.next().unwrap();
-		tree.insert(TimeZone {
+		tree.insert(PtTimeZone {
 			lat: lat.parse::<f64>()?,
 			lng: lng.parse::<f64>()?,
 			name: Some(tz.to_string()),
@@ -89,6 +91,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let dbip_file = File::open("dbip-city-ipv4-num.csv")?;
 	let reader = BufReader::new(dbip_file);
+
+	let current_date = chrono::Utc::now();
+	let year = current_date.year();
+	let month = current_date.month();
+	let day = current_date.day();
 	for line_result in reader.lines() {
 		let line_string = line_result?;
 		assert!(line_string.chars().last().unwrap() == ','); //assert empty time zone
@@ -98,14 +105,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		let lng = iter.next().unwrap();
 		let lat = lat.parse::<f64>()?;
 		let lng = lng.parse::<f64>()?;
-		let tz = tree.nearest_neighbor(
-			&TimeZone {
+		let tz_name = tree.nearest_neighbor(
+			&PtTimeZone {
 				lat,
 				lng,
 				name: None,
 			}
 		).unwrap().name.clone().unwrap();
-		println!("{}{}",line_string,tz);
+
+		let tz: Tz = tz_name.parse().unwrap();
+		let dt = tz.with_ymd_and_hms(year, month, day, 12, 0, 0);
+    let utc = UTC.with_ymd_and_hms(year, month, day, 12, 0, 0);
+		let tz_minutes_offset = match (dt, utc) {
+			(Single(dts), Single(utcs)) => utcs - dts,
+			_ => panic!("Ambiguous time"),
+		}.num_minutes();
+		println!("{}{},{}",line_string,tz_name,tz_minutes_offset);
 	}
 
 	Ok(())
